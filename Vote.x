@@ -3,7 +3,21 @@
 #import "Vote.h"
 #import "API.h"
 #import "TweakSettings.h"
-#import "../Return-YouTube-Dislikes/API.h"
+
+NSNumber *getLikeData(NSDictionary <NSString *, NSNumber *> *data) {
+    // Is it a good idea to return only the likes from the RYD users?
+    return data[@"likes"];
+}
+
+NSNumber *getDislikeData(NSDictionary <NSString *, NSNumber *> *data) {
+    NSNumber *dislikes = data[@"dislikes"];
+    if (UseRawData()) {
+        NSNumber *rawDislikes = data[@"rawDislikes"];
+        if (rawDislikes != (id)[NSNull null])
+            return rawDislikes;
+    }
+    return dislikes;
+}
 
 NSString *formattedLongNumber(NSNumber *number, NSString *error) {
     return error ?: [NSNumberFormatter localizedStringFromNumber:number numberStyle:NSNumberFormatterDecimalStyle];
@@ -42,7 +56,7 @@ static NSString *formattedShortNumber(int64_t number) {
 
 NSString *getNormalizedNumber(NSNumber *number, BOOL exact, NSString *error) {
     if (!number) {
-        HBLogError(@"RYD: Number is nil, error: %@", error);
+        HBLogDebug(@"RYD: Number is nil, error: %@", error);
         return FAILED;
     }
     if (exact)
@@ -89,6 +103,7 @@ void getVoteFromVideoWithHandler(NSCache <NSString *, NSDictionary *> *cache, NS
             handler(data, nil);
         },
         ^BOOL(NSUInteger responseCode) {
+            HBLogDebug(@"RYD: Response code %lu for video %@", responseCode, videoId);
             if (responseCode == 502 || responseCode == 503) {
                 handler(nil, @"CON"); // connection error
                 return NO;
@@ -112,6 +127,7 @@ void getVoteFromVideoWithHandler(NSCache <NSString *, NSDictionary *> *cache, NS
             return YES;
         },
         ^() {
+            HBLogDebug(@"RYD: Retry for video %@", videoId);
             handler(nil, FAILED);
             dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
                 getVoteFromVideoWithHandler(cache, videoId, retryCount - 1, handler);
